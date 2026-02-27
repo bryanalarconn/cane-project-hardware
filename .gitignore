@@ -1,0 +1,57 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+.micropico
+*.sublime-*
+*.code-workspace
+*.iml
+*.swp
+*.swo
+
+# Dependencies / build outputs
+node_modules/
+venv/
+.env
+.venv/
+env/
+dist/
+build/
+out/
+target/
+bin/
+obj/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+pip-wheel-metadata/
+*.egg-info/
+
+# Logs, caches, coverage
+*.log
+logs/
+.coverage
+coverage/
+htmlcov/
+pytest_cache/
+
+# Packaging
+*.egg
+*.egg-info/
+pip-log.txt
+
+# Misc temp files
+*.tmp
+*.bak
+*.old
+
+# Docker / IDE/system files sometimes generated
+docker-compose.override.yml
+*.DS_Store
