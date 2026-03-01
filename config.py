@@ -3,6 +3,7 @@ from micropython import const
 
 # GPIO pins that we are using
 BTN_PIN   = const(10)
+YOLO_PIN  = const(11)
 TRIG_PIN  = const(17)
 ECHO_PIN  = const(16)
 MOTOR_PIN = const(15)

@@ -13,18 +13,31 @@ echo  = Pin(config.ECHO_PIN, Pin.IN)
 # button: pull-up means idle=1, pressed=0 (button wired to GND)
 btn   = Pin(config.BTN_PIN, Pin.IN, Pin.PULL_UP)
 
+# YOLO button: pull-up means idle=1, pressed=0 (button wired to GND)
+yolo_btn = Pin(config.YOLO_PIN, Pin.IN, Pin.PULL_UP)
 # vibration motor: PWM lets us "scale" vibration intensity smoothly
 motor = setup_motor(Pin(config.MOTOR_PIN))
 
 powered = False
 mode    = 0     # 0=standby, 1=vibrate, 2=signal-only
-button  = Button(
+
+main_button  = Button(
     btn,
     DEBOUNCE_MS=config.DEBOUNCE_MS,
     DOUBLE_CLICK_MS=config.DOUBLE_CLICK_MS,
     LONG_PRESS_MS=config.LONG_PRESS_MS
 )
 last_dist_ms = 0
+
+# YOLO trigger rate limit
+last_yolo_ms = 0
+YOLO_COOLDOWN = 2000
+
+yolo_btn_last_val = yolo_btn.value()
+yolo_btn_change = time.ticks_ms()
+
+def send_yolo_trigger():
+        print("\nYOLO_TRIGGER")
 
 def set_mode(new_mode):  # set the operating mode
     global mode
@@ -49,11 +62,26 @@ def power_off():  # power off the device
     set_mode(0)
     print("\n*** POWER OFF ***\n")
 
+def tick_button_b():
+    global yolo_btn_last_val, yolo_btn_change
+
+    now = time.ticks_ms()
+    val = yolo_btn.value()
+
+    pressed_edge = False
+    if val != yolo_btn_last_val and time.ticks_diff(now, yolo_btn_change) > config.DEBOUNCE_MS:
+        yolo_btn_change = now
+        yolo_btn_last_val = val
+        pressed_edge = (val == 0)
+
+    return pressed_edge
+
+
 # debugging print outs
 print("Ready.")
 while True:
-    ev = button.tick()
-
+    # power button and mode selection
+    ev = main_button.tick()
     # controls:
     # - long press toggles power
     # - double click forces standby (if powered)
@@ -61,23 +89,22 @@ while True:
     if ev == 'long':
         power_off() if powered else power_on()
 
-    elif ev == 'double':
-        if powered:
-            set_mode(0)
-            print("\n*** DOUBLE CLICK: STANDBY ***\n")
+    elif powered and ev == 'single':
+        # cycle: standby -> vibrate -> signal-only -> vibrate -> ...
+        set_mode(1)
+        print("\n*** MODE 1: VIBRATE ***\n")
 
-    elif ev == 'single':
-        if powered:
-            # cycle: standby -> vibrate -> signal-only -> vibrate -> ...
-            if mode == 0:
-                set_mode(1)
-                print("\n*** MODE 1: VIBRATE ***\n")
-            elif mode == 1:
-                set_mode(2)
-                print("\n*** MODE 2: SIGNAL ONLY ***\n")
-            else:
-                set_mode(1)
-                print("\n*** MODE 1: VIBRATE ***\n")
+    elif powered and ev == 'double':
+        set_mode(0)
+        print("\n*** DOUBLE CLICK: STANDBY ***\n")
+
+    # YOLO trigger
+    if powered and tick_button_b():
+        now = time.ticks_ms()
+        if time.ticks_diff(now, last_yolo_ms) >= YOLO_COOLDOWN:
+            send_yolo_trigger()
+            last_yolo_ms = now
+
 
     # motor / sensor logic
     # standby = motor off + skip sensor reads
@@ -103,19 +130,5 @@ while True:
                 duty = duty_from_distance(d, config.NEAR, config.FAR)
                 motor.duty_u16(duty)
                 print("Mode 1 | dist:", round(d, 1), "cm | duty:", duty)
-
-        elif mode == 2:
-            # MODE 2: signal-only (no vibration)
-            # confirm can be used later as a boolean trigger for other logic
-            motor.duty_u16(0)
-
-            if d is None:
-                confirm = False
-            else:
-                confirm = (d <= config.FAR)
-
-            # right now we just print distance; confirm is computed for later use
-            print("Mode 2 | dist:", (round(d, 1) if d is not None else None),
-                  "cm")
 
     time.sleep_ms(config.LOOP_SLEEP_MS)
