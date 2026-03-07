@@ -18,3 +18,5 @@ LOOP_SLEEP_MS   = const(5)    # fast loop for button responsiveness
 DIST_INTERVAL_MS = const(100) # how often to fire the sensor
 
 
+POWER_LED_PIN = const(1)
+YOLO_LED_PIN  = const(0)

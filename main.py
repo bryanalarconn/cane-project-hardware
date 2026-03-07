@@ -5,6 +5,11 @@ from button import Button
 from ultrasonic import distance_cm
 from motor import setup_motor, duty_from_distance
 
+power_led = Pin(config.POWER_LED_PIN, Pin.OUT)
+yolo_led  = Pin(config.YOLO_LED_PIN, Pin.OUT)
+power_led.value(0)
+yolo_led.value(0)
+
 # hardware connections
 # ultrasonic sensor: TRIG drives the pulse, ECHO reads the return
 trig  = Pin(config.TRIG_PIN, Pin.OUT)
@@ -37,7 +42,13 @@ yolo_btn_last_val = yolo_btn.value()
 yolo_btn_change = time.ticks_ms()
 
 def send_yolo_trigger():
-        print("\nYOLO_TRIGGER")
+    print("\nYOLO_TRIGGER")
+        # Debug: blink YOLO LED for ~0.6s total (3 quick flashes)
+    for _ in range(3):
+        yolo_led.value(1)
+        time.sleep_ms(100)
+        yolo_led.value(0)
+        time.sleep_ms(100)
 
 def set_mode(new_mode):  # set the operating mode
     global mode
@@ -47,18 +58,21 @@ def set_mode(new_mode):  # set the operating mode
     motor.duty_u16(0)
 
     # user-facing label
-    label = ('STANDBY', 'VIBRATE', 'SIGNAL ONLY')[new_mode]
+    label = ('STANDBY', 'VIBRATE')[new_mode]
     print("\n*** MODE:", label, "***\n")
 
 def power_on():  # power on the device
     global powered
     powered = True
+    power_led.value(1)
     set_mode(0)
     print("\n*** POWER ON: STANDBY ***\n")
 
 def power_off():  # power off the device
     global powered
     powered = False
+    power_led.value(0)
+    yolo_led.value(0)
     set_mode(0)
     print("\n*** POWER OFF ***\n")
 
@@ -83,7 +97,7 @@ while True:
     # power button and mode selection
     ev = main_button.tick()
     # controls:
-    # - long press toggles power
+    # - long press toggles powher
     # - double click forces standby (if powered)
     # - single click cycles modes (if powered)
     if ev == 'long':
