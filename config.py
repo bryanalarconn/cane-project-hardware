@@ -7,6 +7,7 @@ YOLO_PIN  = const(11)
 TRIG_PIN  = const(17)
 ECHO_PIN  = const(16)
 MOTOR_PIN = const(15)
+BUZZER_PIN = const(5)   
 
 # const distance values
 NEAR            = const(10)
@@ -19,4 +20,3 @@ DIST_INTERVAL_MS = const(100) # how often to fire the sensor
 
 
 POWER_LED_PIN = const(1)
-YOLO_LED_PIN  = const(0)

@@ -4,11 +4,11 @@ import config
 from button import Button
 from ultrasonic import distance_cm
 from motor import setup_motor, duty_from_distance
+from buzzer import power_on_sound, power_off_sound 
+
 
 power_led = Pin(config.POWER_LED_PIN, Pin.OUT)
-yolo_led  = Pin(config.YOLO_LED_PIN, Pin.OUT)
 power_led.value(0)
-yolo_led.value(0)
 
 # hardware connections
 # ultrasonic sensor: TRIG drives the pulse, ECHO reads the return
@@ -22,6 +22,9 @@ btn   = Pin(config.BTN_PIN, Pin.IN, Pin.PULL_UP)
 yolo_btn = Pin(config.YOLO_PIN, Pin.IN, Pin.PULL_UP)
 # vibration motor: PWM lets us "scale" vibration intensity smoothly
 motor = setup_motor(Pin(config.MOTOR_PIN))
+
+buzzer_pin = Pin(config.BUZZER_PIN, Pin.OUT)   # <-- ADD THIS
+
 
 powered = False
 mode    = 0     # 0=standby, 1=vibrate, 2=signal-only
@@ -43,17 +46,11 @@ yolo_btn_change = time.ticks_ms()
 
 def send_yolo_trigger():
     print("\nYOLO_TRIGGER")
-        # Debug: blink YOLO LED for ~0.6s total (3 quick flashes)
-    for _ in range(3):
-        yolo_led.value(1)
-        time.sleep_ms(100)
-        yolo_led.value(0)
-        time.sleep_ms(100)
+
 
 def set_mode(new_mode):  # set the operating mode
     global mode
     mode = new_mode
-
     # always kill vibration when switching modes
     motor.duty_u16(0)
 
@@ -65,14 +62,16 @@ def power_on():  # power on the device
     global powered
     powered = True
     power_led.value(1)
+    power_on_sound(buzzer_pin) 
     set_mode(0)
     print("\n*** POWER ON: STANDBY ***\n")
 
 def power_off():  # power off the device
     global powered
+    motor.duty_u16(0)             # stop motor before shutdown
+    power_off_sound(buzzer_pin)
     powered = False
     power_led.value(0)
-    yolo_led.value(0)
     set_mode(0)
     print("\n*** POWER OFF ***\n")
 
