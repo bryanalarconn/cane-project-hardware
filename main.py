@@ -50,9 +50,6 @@ def send_yolo_trigger():
     print("\nYOLO_TRIGGER")
 
 def send_yolo_stop():
-    # triggered by double-click on button 2
-    # tells mode2.py on the Pi to kill the running YOLO process
-    # device stays on - only the YOLO model is stopped
     print("\nYOLO_STOP")
     print("*** YOLO STOPPED ***\n")
 
@@ -92,6 +89,7 @@ def power_off():  # power off the device
 def main():
     print("Ready.")
     while True:
+        global last_yolo_ms, last_dist_ms
         # main button
         ev = main_button.tick()
         if ev == 'long':
