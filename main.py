@@ -72,6 +72,7 @@ def power_on():  # power on the device
     print("\n*** POWER ON: STANDBY ***\n")
 
 def power_off():  # power off the device
+    send_yolo_stop()        # stop the model, device stays on
     global powered
     motor.duty_u16(0) # stop motor before shutdown
     power_off_sound(buzzer_pin)
@@ -93,6 +94,7 @@ def main():
         # main button
         ev = main_button.tick()
         if ev == 'long':
+            send_yolo_stop()        # stop the model, device stays on
             power_off() if powered else power_on()
 
         elif powered and ev == 'single':
