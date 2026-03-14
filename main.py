@@ -41,8 +41,12 @@ last_dist_ms = 0
 last_yolo_ms = 0
 YOLO_COOLDOWN = 2000
 
-yolo_btn_last_val = yolo_btn.value()
-yolo_btn_change = time.ticks_ms()
+yolo_button = Button(
+    yolo_btn,
+    DEBOUNCE_MS=config.DEBOUNCE_MS,
+    DOUBLE_CLICK_MS=config.DOUBLE_CLICK_MS,
+    LONG_PRESS_MS=config.LONG_PRESS_MS
+)
 
 def send_yolo_trigger():
     print("\nYOLO_TRIGGER")
@@ -75,20 +79,25 @@ def power_off():  # power off the device
     set_mode(0)
     print("\n*** POWER OFF ***\n")
 
-def tick_button_b():
-    global yolo_btn_last_val, yolo_btn_change
+def safe_shutdown():
+    global powered
+    print("\n*** SAFE SHUTDOWN TRIGGERED ***\n")
+    # 1. Stop motor immediately - safety first
+    motor.duty_u16(0)
 
-    now = time.ticks_ms()
-    val = yolo_btn.value()
+    # 2. Audible + visual feedback so user knows shutdown is happening
+    power_off_sound(buzzer_pin)
+    power_led.value(0)
 
-    pressed_edge = False
-    if val != yolo_btn_last_val and time.ticks_diff(now, yolo_btn_change) > config.DEBOUNCE_MS:
-        yolo_btn_change = now
-        yolo_btn_last_val = val
-        pressed_edge = (val == 0)
+    # 3. Signal the Raspberry Pi to shut down gracefully
+    #    Pi's mode2.py reads this line and can call `sudo shutdown -h now`
+    print("SHUTDOWN_TRIGGER")
 
-    return pressed_edge
+    # 4. Update state
+    powered = False
+    mode    = 0
 
+    print("*** PICO IDLE - WAITING FOR POWER CYCLE ***\n")
 
 # debugging print outs
 print("Ready.")
@@ -112,11 +121,16 @@ while True:
         print("\n*** DOUBLE CLICK: STANDBY ***\n")
 
     # YOLO trigger
-    if powered and tick_button_b():
+    b2_ev = yolo_button.tick()
+
+    if powered and b2_ev == 'single':
         now = time.ticks_ms()
         if time.ticks_diff(now, last_yolo_ms) >= YOLO_COOLDOWN:
             send_yolo_trigger()
             last_yolo_ms = now
+
+    elif b2_ev == 'double':
+        safe_shutdown()
 
 
     # motor / sensor logic
