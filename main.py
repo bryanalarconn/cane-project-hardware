@@ -1,28 +1,29 @@
-from machine import Pin
+from machine import Pin, UART
 import time
-import config 
+import config
 from button import Button
 from ultrasonic import distance_cm
 from motor import setup_motor, duty_from_distance
-from buzzer import power_on_sound, power_off_sound 
+from buzzer import power_on_sound, power_off_sound
 
-
-# all pins declared upfront so wiring is easy to audit in one place
 
 power_led = Pin(config.POWER_LED_PIN, Pin.OUT)
 power_led.value(0) # LED off until device is on (testing)
 
-trig  = Pin(config.TRIG_PIN, Pin.OUT) # TRIG drives the pulse,
-echo  = Pin(config.ECHO_PIN, Pin.IN) #  ECHO reads the return
+trig  = Pin(config.TRIG_PIN, Pin.OUT)   # TRIG drives the pulse
+echo  = Pin(config.ECHO_PIN, Pin.IN)    # ECHO reads the return
 
-btn   = Pin(config.BTN_PIN, Pin.IN, Pin.PULL_UP) # main button (button 1)
-yolo_btn = Pin(config.YOLO_PIN, Pin.IN, Pin.PULL_UP) # YOLO button (button 2)
-motor = setup_motor(Pin(config.MOTOR_PIN)) # PWM so we can  scale vibration intensity
+btn      = Pin(config.BTN_PIN, Pin.IN, Pin.PULL_UP)   # power/mode
+yolo_btn = Pin(config.YOLO_PIN, Pin.IN, Pin.PULL_UP)  # YOLO toggle
 
-buzzer_pin = Pin(config.BUZZER_PIN, Pin.OUT)   # passive buzzer for audio feedback
+motor      = setup_motor(Pin(config.MOTOR_PIN))  # PWM for vibration intensity
+buzzer_pin = Pin(config.BUZZER_PIN, Pin.OUT)      # buzzer for audio feedback
 
- # button objects 
-main_button  = Button(
+uart = UART(0, baudrate=115200, tx=Pin(0), rx=Pin(1))
+
+
+#  Button objects 
+main_button = Button(
     btn,
     DEBOUNCE_MS=config.DEBOUNCE_MS,
     DOUBLE_CLICK_MS=config.DOUBLE_CLICK_MS,
@@ -35,115 +36,124 @@ yolo_button = Button(
     LONG_PRESS_MS=config.LONG_PRESS_MS
 )
 
-# state variables
-powered = False
-mode    = 0     # 0=standby, 1=vibrate
+STATE_OFF     = 0
+STATE_STANDBY = 1
+STATE_MODE1   = 2
+STATE_MODE2   = 3
 
-last_dist_ms = 0 # tracks when we last fired the distance sensor
-last_yolo_ms = 0 # tracks when we last sent a YOLO trigger
-
-YOLO_COOLDOWN = 2000 # ms between YOLO triggers
+state = STATE_OFF
+last_dist_ms = 0
 
 
-# helper functions
+# Commands to Pi
+# sent over UART; mode2.py on Pi reads these lines
+
 def send_yolo_trigger():
-    print("\nYOLO_TRIGGER")
+    uart.write(b'YOLO_TRIGGER\n')
+    print("SENT: YOLO_TRIGGER")      # debug to USB/REPL
 
 def send_yolo_stop():
-    print("\nYOLO_STOP")
-    print("*** YOLO STOPPED ***\n")
+    uart.write(b'YOLO_STOP\n')
+    print("SENT: YOLO_STOP")         # debug to USB/REPL
 
 
-def set_mode(new_mode):  # set the operating mode
-    # always kill vibration when switching modes
-    global mode
-    mode = new_mode
+#  State transitions 
+
+def enter_off():
+    global state
     motor.duty_u16(0)
-
-    label = ('STANDBY', 'VIBRATE')[new_mode]
-    print("\n*** MODE:", label, "***\n")
-
-def power_on():  # power on the device
-    global powered
-    powered = True
-    power_led.value(1)
-    power_on_sound(buzzer_pin) # audio cue to show device is on
-    set_mode(0)
-    print("\n*** POWER ON: STANDBY ***\n")
-
-def power_off():  # power off the device
-    send_yolo_stop()        # stop the model, device stays on
-    global powered
-    motor.duty_u16(0) # stop motor before shutdown
     power_off_sound(buzzer_pin)
-    powered = False
-    power_led.value(0)
-    set_mode(0)
-    print("\n*** POWER OFF ***\n")
+    state = STATE_OFF
+    print("\n*** STATE: OFF ***\n")
 
-# button controls
-#   main button  | long press   -> toggle power on/off
-#   main button  | single click -> mode 1 (vibrate)
-#   main button  | double click -> standby
-#   yolo button  | single click -> start YOLO model
-#   yolo button  | double click -> stop YOLO model
+def enter_standby():
+    global state
+    motor.duty_u16(0)
+    state = STATE_STANDBY
+    print("\n*** STATE: STANDBY ***\n")
+
+def enter_mode1():
+    global state
+    state = STATE_MODE1
+    print("\n*** STATE: MODE 1 — SONAR ***\n")
+
+def enter_mode2():
+    global state
+    send_yolo_trigger()
+    state = STATE_MODE2
+    power_on_sound(buzzer_pin)  # confirmation chirp
+    print("\n*** STATE: MODE 2 — YOLO ***\n")
+
+def exit_mode2():
+    send_yolo_stop()
+    power_off_sound(buzzer_pin)
+    enter_standby()
+
+def full_power_off():
+    if state == STATE_MODE2:
+        send_yolo_stop()
+    enter_off()
+
+
+# Main loop 
+
 def main():
-    print("Ready.")
+    global last_dist_ms
+
+    print("Pico ready. System OFF. Pi idle in background.")
+
     while True:
-        global last_yolo_ms, last_dist_ms
-        # main button
-        ev = main_button.tick()
-        if ev == 'long':
-            send_yolo_stop()        # stop the model, device stays on
-            power_off() if powered else power_on()
-
-        elif powered and ev == 'single':
-            set_mode(1)
-            print("\n*** MODE 1: VIBRATE ***\n")
-
-        elif powered and ev == 'double':
-            set_mode(0)
-            print("\n*** DOUBLE CLICK: STANDBY ***\n")
-
-        # YOLO button
+        ev1 = main_button.tick()
         ev2 = yolo_button.tick()
-
-        if powered and ev2 == 'single':
-            now = time.ticks_ms() 
-            if time.ticks_diff(now, last_yolo_ms) >= YOLO_COOLDOWN:
-                send_yolo_trigger()
-                last_yolo_ms = now
-
-        elif powered and ev2 == 'double':
-            send_yolo_stop()        # stop the model, device stays on
-
-
-        # motor / sensor logic
-        # standby = motor off + skip sensor reads
-        if not powered or mode == 0:
-            motor.duty_u16(0)
-            time.sleep_ms(config.LOOP_SLEEP_MS)
-            continue
-
-        # fire the sensor at a fixed interval, independent of the fast button loop
         now = time.ticks_ms()
-        if time.ticks_diff(now, last_dist_ms) >= config.DIST_INTERVAL_MS:
-            last_dist_ms = now
 
-            # blocking ~0.6–30ms depending on distance/timeout; fine at 100ms intervals
-            d = distance_cm(trig, echo)
+        # STATE: OFF 
+        if state == STATE_OFF:
+            if ev1 == 'long':
+                power_on_sound(buzzer_pin)
+                enter_standby()
 
-            if mode == 1:
-                # vibration intensity scales with distance
+        # STATE: STANDBY
+        elif state == STATE_STANDBY:
+            if ev1 == 'long':
+                full_power_off()
+
+            elif ev1 == 'single':
+                enter_mode1()
+
+            elif ev2 == 'long':
+                enter_mode2()
+
+        # STATE: MODE 1 
+        elif state == STATE_MODE1:
+            if ev1 == 'long':
+                full_power_off()
+
+            elif ev1 == 'double':
+                motor.duty_u16(0)
+                enter_standby()
+
+            # sensor loop at fixed interval
+            elif time.ticks_diff(now, last_dist_ms) >= config.DIST_INTERVAL_MS:
+                last_dist_ms = now
+                d = distance_cm(trig, echo)
+
                 if d is None:
                     motor.duty_u16(0)
-                    print("dist: None | duty: 0")
                 else:
                     duty = duty_from_distance(d, config.NEAR, config.FAR)
                     motor.duty_u16(duty)
-                    print("dist:", round(d, 1), "cm | duty:", duty)
+
+        # STATE: MODE 2 
+        elif state == STATE_MODE2:
+            if ev1 == 'long':
+                full_power_off()
+
+            elif ev2 == 'long':
+                exit_mode2()
 
         time.sleep_ms(config.LOOP_SLEEP_MS)
+
 
 if __name__ == "__main__":
     main()
