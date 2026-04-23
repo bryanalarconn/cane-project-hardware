@@ -7,7 +7,7 @@ from drivers.motor import setup_motor, duty_from_distance
 from drivers.buzzer import (power_on_sound, power_off_sound,
                             mode_start_sound, mode_stop_sound, error_sound)
 from debug import dbg
-
+from selfcheck import run_selfcheck
 
 # all pins declared upfront so wiring is easy to audit in one place
 trig  = Pin(config.TRIG_PIN, Pin.OUT)   # TRIG drives the pulse
@@ -67,56 +67,75 @@ def _log_state_transition(new_state):
 
 # State transitions
 
+def _announce(new_state):
+    dbg("STATE: {} → {}".format(
+        _STATE_NAMES.get(state, "?"),
+        _STATE_NAMES.get(new_state, "?")))
+ 
 def enter_off():
-    global state
-    _log_state_transition(STATE_OFF)
+    global state, motor
+    _announce(STATE_OFF)
     motor.duty_u16(0)
+    motor.deinit()                 # fully release motor PWM before buzzer plays
     power_off_sound(buzzer_pin)
+    # reinit motor so it's ready if device powers back on
+    motor = setup_motor(Pin(config.MOTOR_PIN))
     state = STATE_OFF
-
+ 
 def enter_standby():
-    global state
-    _log_state_transition(STATE_STANDBY)
-    motor.duty_u16(0)
+    global state, motor
+    _announce(STATE_STANDBY)
+    # setup_motor() starts at duty 0 so motor is off
+    motor = setup_motor(Pin(config.MOTOR_PIN))
     state = STATE_STANDBY
-
+ 
 def enter_mode1():
     global state
-    _log_state_transition(STATE_MODE1)
+    _announce(STATE_MODE1)
+    mode_start_sound(buzzer_pin)   # quick ascending "ready" chirp
     state = STATE_MODE1
-    mode_start_sound(buzzer_pin)
-
+ 
 def enter_mode2():
     global state
-    _log_state_transition(STATE_MODE2)
+    _announce(STATE_MODE2)
     send_yolo_trigger()
+    mode_start_sound(buzzer_pin)   # quick ascending "ready" chirp
     state = STATE_MODE2
-    mode_start_sound(buzzer_pin)
-
+ 
 def exit_mode1():
+    """stop sonar and return to standby"""
     dbg("Exiting Mode 1")
+    mode_stop_sound(buzzer_pin)    
     motor.duty_u16(0)
-    mode_stop_sound(buzzer_pin)
+    motor.deinit()                 # fully release motor PWM before buzzer plays
     enter_standby()
  
-
 def exit_mode2():
     dbg("Exiting Mode 2")
     send_yolo_stop()
-    mode_stop_sound(buzzer_pin) 
+    mode_stop_sound(buzzer_pin)    
     enter_standby()
-
+ 
 def full_power_off():
-    dbg("Full power-off")
+    dbg("Full power-off requested")
     if state == STATE_MODE2:
         send_yolo_stop()
+    elif state == STATE_MODE1:
+        # motor PWM is active in Mode 1, release it before buzzer plays
+        motor.duty_u16(0)
+        motor.deinit()
     enter_off()
-
 
 # Main loop 
 
 def main():
     global last_dist_ms
+    
+    ok = run_selfcheck()
+    if not ok:
+        dbg("Self-check warnings")
+    else:
+        dbg("Self-check passed")
 
     dbg("Pico ready. System OFF. Pi idle in background.")
 
@@ -158,10 +177,10 @@ def main():
 
                 if d is None:
                     motor.duty_u16(0)
-                    ## dbg("dist: None | duty: 0")
+                    dbg("dist: None | duty: 0")
                 else:
                     duty = duty_from_distance(d, config.NEAR, config.FAR)
-                    ## dbg("dist: {} | duty: {}".format(d, duty))
+                    dbg("dist: {} | duty: {}".format(d, duty))
                     motor.duty_u16(duty)
 
         # STATE: MODE 2 
