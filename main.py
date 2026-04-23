@@ -1,12 +1,15 @@
 from machine import Pin, UART
 import time
 import config
-from button import Button
-from ultrasonic import distance_cm
-from motor import setup_motor, duty_from_distance
-from buzzer import power_on_sound, power_off_sound
+from drivers.button import Button
+from drivers.ultrasonic import distance_cm
+from drivers.motor import setup_motor, duty_from_distance
+from drivers.buzzer import (power_on_sound, power_off_sound,
+                            mode_start_sound, mode_stop_sound, error_sound)
+from debug import dbg
 
 
+# all pins declared upfront so wiring is easy to audit in one place
 trig  = Pin(config.TRIG_PIN, Pin.OUT)   # TRIG drives the pulse
 echo  = Pin(config.ECHO_PIN, Pin.IN)    # ECHO reads the return
 
@@ -16,10 +19,11 @@ yolo_btn = Pin(config.YOLO_PIN, Pin.IN, Pin.PULL_UP)  # YOLO toggle
 motor      = setup_motor(Pin(config.MOTOR_PIN))  # PWM for vibration intensity
 buzzer_pin = Pin(config.BUZZER_PIN, Pin.OUT)      # buzzer for audio feedback
 
+# UART to Pi - GP0 (TX) -> Pi pin 10 (RXD), GP1 (RX) -> Pi pin 8 (TXD)
 uart = UART(0, baudrate=115200, tx=Pin(0), rx=Pin(1))
 
 
-#  Button objects 
+# Button objects 
 main_button = Button(
     btn,
     DEBOUNCE_MS=config.DEBOUNCE_MS,
@@ -38,55 +42,72 @@ STATE_STANDBY = 1
 STATE_MODE1   = 2
 STATE_MODE2   = 3
 
+_STATE_NAMES = {0: "OFF", 1: "STANDBY", 2: "MODE1-SONAR", 3: "MODE2-YOLO"}
+
+
 state = STATE_OFF
 last_dist_ms = 0
 
 
 # Commands to Pi
 # sent over UART; mode2.py on Pi reads these lines
-
 def send_yolo_trigger():
     uart.write(b'YOLO_TRIGGER\n')
-    print("SENT: YOLO_TRIGGER")      # debug to USB/REPL
-
+    dbg("UART TX -> YOLO_TRIGGER")
+    
 def send_yolo_stop():
     uart.write(b'YOLO_STOP\n')
-    print("SENT: YOLO_STOP")         # debug to USB/REPL
+    dbg("UART TX -> YOLO_STOP")
 
 
-#  State transitions 
+def _log_state_transition(new_state):
+    dbg("STATE: {} -> {}".format(
+        _STATE_NAMES.get(state, "?"),
+        _STATE_NAMES.get(new_state, "?")))
+
+# State transitions
 
 def enter_off():
     global state
+    _log_state_transition(STATE_OFF)
     motor.duty_u16(0)
     power_off_sound(buzzer_pin)
     state = STATE_OFF
-    print("\n*** STATE: OFF ***\n")
 
 def enter_standby():
     global state
+    _log_state_transition(STATE_STANDBY)
     motor.duty_u16(0)
     state = STATE_STANDBY
-    print("\n*** STATE: STANDBY ***\n")
 
 def enter_mode1():
     global state
+    _log_state_transition(STATE_MODE1)
     state = STATE_MODE1
-    print("\n*** STATE: MODE 1 — SONAR ***\n")
+    mode_start_sound(buzzer_pin)
 
 def enter_mode2():
     global state
+    _log_state_transition(STATE_MODE2)
     send_yolo_trigger()
     state = STATE_MODE2
-    power_on_sound(buzzer_pin)  # confirmation chirp
-    print("\n*** STATE: MODE 2 — YOLO ***\n")
+    mode_start_sound(buzzer_pin)
+
+def exit_mode1():
+    dbg("Exiting Mode 1")
+    motor.duty_u16(0)
+    mode_stop_sound(buzzer_pin)
+    enter_standby()
+ 
 
 def exit_mode2():
+    dbg("Exiting Mode 2")
     send_yolo_stop()
-    power_off_sound(buzzer_pin)
+    mode_stop_sound(buzzer_pin) 
     enter_standby()
 
 def full_power_off():
+    dbg("Full power-off")
     if state == STATE_MODE2:
         send_yolo_stop()
     enter_off()
@@ -97,7 +118,7 @@ def full_power_off():
 def main():
     global last_dist_ms
 
-    print("Pico ready. System OFF. Pi idle in background.")
+    dbg("Pico ready. System OFF. Pi idle in background.")
 
     while True:
         ev1 = main_button.tick()
@@ -137,8 +158,10 @@ def main():
 
                 if d is None:
                     motor.duty_u16(0)
+                    ## dbg("dist: None | duty: 0")
                 else:
                     duty = duty_from_distance(d, config.NEAR, config.FAR)
+                    ## dbg("dist: {} | duty: {}".format(d, duty))
                     motor.duty_u16(duty)
 
         # STATE: MODE 2 
