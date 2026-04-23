@@ -7,9 +7,6 @@ from motor import setup_motor, duty_from_distance
 from buzzer import power_on_sound, power_off_sound
 
 
-power_led = Pin(config.POWER_LED_PIN, Pin.OUT)
-power_led.value(0) # LED off until device is on (testing)
-
 trig  = Pin(config.TRIG_PIN, Pin.OUT)   # TRIG drives the pulse
 echo  = Pin(config.ECHO_PIN, Pin.IN)    # ECHO reads the return
 
