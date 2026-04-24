@@ -131,7 +131,7 @@ def full_power_off():
 def main():
     global last_dist_ms
     
-    ok = run_selfcheck()
+    ok = run_selfcheck(uart)
     if not ok:
         dbg("Self-check warnings")
     else:
