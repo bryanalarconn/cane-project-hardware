@@ -78,7 +78,8 @@ def _check_uart(uart):
             uart.read()
  
         # send PING
-        uart.write(b'PING\n')
+        time.sleep_ms(100)
+        uart.write(b'PING')
         _log("  [    ] UART — sent PING, waiting for PONG...")
  
         # wait up to 2 seconds for response

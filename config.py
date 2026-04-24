@@ -17,7 +17,7 @@ YOLO_PIN  = const(11)
 TRIG_PIN  = const(17)
 ECHO_PIN  = const(16)
 MOTOR_PIN = const(15)
-BUZZER_PIN = const(5)   
+BUZZER_PIN = const(22)   
 
 # const distance values
 # NEAR or closer  = full vibration

@@ -20,7 +20,7 @@ motor      = setup_motor(Pin(config.MOTOR_PIN))  # PWM for vibration intensity
 buzzer_pin = Pin(config.BUZZER_PIN, Pin.OUT)      # buzzer for audio feedback
 
 # UART to Pi - GP0 (TX) -> Pi pin 10 (RXD), GP1 (RX) -> Pi pin 8 (TXD)
-uart = UART(0, baudrate=115200, tx=Pin(0), rx=Pin(1))
+uart = UART(1, baudrate=115200, tx=Pin(4), rx=Pin(5))
 
 
 # Button objects 
@@ -177,10 +177,10 @@ def main():
 
                 if d is None:
                     motor.duty_u16(0)
-                    dbg("dist: None | duty: 0")
+                    ##dbg("dist: None | duty: 0")
                 else:
                     duty = duty_from_distance(d, config.NEAR, config.FAR)
-                    dbg("dist: {} | duty: {}".format(d, duty))
+                    ##dbg("dist: {} | duty: {}".format(d, duty))
                     motor.duty_u16(duty)
 
         # STATE: MODE 2 
