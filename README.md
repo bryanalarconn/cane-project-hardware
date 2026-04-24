@@ -14,15 +14,15 @@ The Pico acts as the device's hardware controller, managing two operating modes:
 
 | Mode | Trigger | What It Does |
 |------|---------|--------------|
-| **Mode 1 — Sonar** | Single-click SW3 | HC-SR04 ultrasonic sensor measures distance; vibration motor intensity scales linearly from gentle (75 cm) to full (≤10 cm). Provides real-time haptic obstacle feedback. |
-| **Mode 2 — YOLO** | Long-press SW4 | Sends `YOLO_TRIGGER` over UART to the Pi 5, which runs YOLOv8n object detection on a Camera Module 3 feed with text-to-speech audio output. |
+| **Mode 1 — Sonar** | Single-click SW1 | HC-SR04 ultrasonic sensor measures distance; vibration motor intensity scales linearly from gentle (75 cm) to full (≤10 cm). Provides real-time haptic obstacle feedback. |
+| **Mode 2 — YOLO** | Long-press SW2 | Sends `YOLO_TRIGGER` over UART to the Pi 5, which runs YOLOv8n object detection on a Camera Module 3 feed with text-to-speech audio output. |
 
 A state machine governs the device lifecycle:
 
 ```
-OFF ──long-press SW3──▶ STANDBY ──single-click SW3──▶ MODE 1 (Sonar)
+OFF ──long-press SW3──▶ STANDBY ──single-click SW1──▶ MODE 1 (Sonar)
                          │                                │
-                         │──long-press SW4──▶ MODE 2 (YOLO)│
+                         │──long-press SW2──▶ MODE 2 (YOLO)│
                          │                                │
                     long-press SW3 ◀── (from any mode) ───┘
                          │
@@ -41,8 +41,8 @@ At boot, a self-check routine tests all six peripherals (buzzer, motor, ultrason
 | HC-SR04 Ultrasonic Sensor | TRIG → GP17, ECHO → GP16 |
 | Vibration Motor (PWM) | GP15 |
 | Passive Buzzer (PWM) | GP22 |
-| SW3 — Main Button | GP10 (internal pull-up) |
-| SW4 — YOLO Button | GP11 (internal pull-up) |
+| SW1 — Main Button | GP10 (internal pull-up) |
+| SW3 — YOLO Button | GP11 (internal pull-up) |
 | UART to Raspberry Pi 5 | TX → GP4, RX → GP5 (115200 baud) |
 
 ### Power System
