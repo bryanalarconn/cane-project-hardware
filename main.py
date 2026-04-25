@@ -133,7 +133,7 @@ def main():
     else:
         dbg("Self-check passed")
 
-    dbg("Pico ready. System OFF. Pi idle in background.")
+    dbg("STATE:OFF")
 
     while True:
         ev1 = main_button.tick()
