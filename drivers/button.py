@@ -66,7 +66,8 @@ class Button:
 
         # pending single-click timeout
         # if no second click appears within DOUBLE_CLICK_MS, it becomes a single click
-        if not event and self._pending and time.ticks_diff(now, self._pend_time) > self._DOUBLE_CLICK_MS:
+        # only fire when button is released (val == 1) to prevent false single before long press
+        if not event and self._pending and val == 1 and time.ticks_diff(now, self._pend_time) > self._DOUBLE_CLICK_MS:
             self._pending = False
             event = 'single'
 

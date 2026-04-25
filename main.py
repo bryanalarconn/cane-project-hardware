@@ -103,21 +103,17 @@ def enter_mode2():
     state = STATE_MODE2
  
 def exit_mode1():
-    """stop sonar and return to standby"""
-    dbg("Exiting Mode 1")
     mode_stop_sound(buzzer_pin)    
     motor.duty_u16(0)
     motor.deinit()                 # fully release motor PWM before buzzer plays
     enter_standby()
  
 def exit_mode2():
-    dbg("Exiting Mode 2")
     send_yolo_stop()
     mode_stop_sound(buzzer_pin)    
     enter_standby()
  
 def full_power_off():
-    dbg("Full power-off requested")
     if state == STATE_MODE2:
         send_yolo_stop()
     elif state == STATE_MODE1:
