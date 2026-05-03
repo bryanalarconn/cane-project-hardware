@@ -5,7 +5,7 @@ from drivers.button import Button
 from drivers.ultrasonic import distance_cm
 from drivers.motor import setup_motor, duty_from_distance
 from drivers.buzzer import (power_on_sound, power_off_sound,
-                            mode_start_sound, mode_stop_sound, error_sound)
+                            mode_start_sound, mode_stop_sound)
 from debug import dbg
 from selfcheck import run_selfcheck
 
@@ -58,12 +58,6 @@ def send_yolo_trigger():
 def send_yolo_stop():
     uart.write(b'YOLO_STOP\n')
     dbg("UART TX -> YOLO_STOP")
-
-
-def _log_state_transition(new_state):
-    dbg("STATE: {} -> {}".format(
-        _STATE_NAMES.get(state, "?"),
-        _STATE_NAMES.get(new_state, "?")))
 
 # State transitions
 
